@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UH FLAT 더 속초 - 어린이날 미션 투어</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700;900&display=swap');
+        
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f8fafc;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            margin: 0;
+            padding: 0;
+        }
+
+        #app {
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        .mission-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .mission-completed {
+            background-color: #f0fdf4;
+            border-color: #4ade80;
+        }
+
+        .stamp-anim {
+            animation: stampIn 0.5s ease-out forwards;
+        }
+
+        @keyframes stampIn {
+            0% { transform: scale(3); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .photo-preview {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            border-radius: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        img.error-fallback {
+            background-color: #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.8rem;
+            min-height: 100px;
+        }
+    </style>
+</head>
+<body class="max-w-md mx-auto min-h-screen shadow-2xl bg-white">
+
+    <div id="app" class="relative min-h-screen flex flex-col">
+        <!-- 화면이 여기에 렌더링됩니다 -->
+    </div>
+
+    <!-- 사진 업로드용 숨겨진 입력창 -->
+    <input type="file" id="globalFileInput" accept="image/*" capture="environment" class="hidden">
+
+    <script>
+        // 초기 상태 설정
+        const STATE_KEY = 'uh_flat_mission_state_v4';
+        let state = JSON.parse(localStorage.getItem(STATE_KEY)) || {
+            currentScreen: 'home',
+            missions: {
+                m1: { completed: false, photo: null },
+                m2: { completed: false, photo: null },
+                m3: { completed: false, photo: null }
+            },
+            rewardClaimed: false
+        };
+
+        // 데이터 저장 및 화면 갱신
+        function saveState() {
+            localStorage.setItem(STATE_KEY, JSON.stringify(state));
+            render();
+        }
+
+        // 화면 전환 함수
+        function setScreen(screen) {
+            if (state.rewardClaimed) return;
+            state.currentScreen = screen;
+            saveState();
+            window.scrollTo(0, 0);
+        }
+
+        // 미션 완료 처리
+        function completeMission(id) {
+            state.missions[id].completed = true;
+            saveState();
+        }
+
+        // 사진 업로드 로직
+        function triggerPhotoUpload(id) {
+            const fileInput = document.getElementById('globalFileInput');
+            fileInput.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            const MAX_WIDTH = 600;
+                            const scaleSize = MAX_WIDTH / img.width;
+                            canvas.width = MAX_WIDTH;
+                            canvas.height = img.height * scaleSize;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                            
+                            state.missions[id].photo = canvas.toDataURL('image/jpeg', 0.7);
+                            saveState();
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            };
+            fileInput.click();
+        }
+
+        // 이미지 오류 핸들러
+        function handleImgError(el, text) {
+            el.onerror = null;
+            el.classList.add('error-fallback');
+            el.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%23cbd5e1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect width='18' height='18' x='3' y='3' rx='2' ry='2'%3E%3C/rect%3E%3Ccircle cx='9' cy='9' r='2'%3E%3C/circle%3E%3Cpath d='m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21'%3E%3C/path%3E%3C/svg%3E";
+        }
+
+        // 메인 렌더링 함수
+        function render() {
+            const app = document.getElementById('app');
+            if (!app) return;
+
+            // 선물 수령 완료 시 고정 화면
+            if (state.rewardClaimed) {
+                app.innerHTML = renderClaimedFinal();
+                return;
+            }
+
+            // 화면별 분기
+            switch (state.currentScreen) {
+                case 'home': app.innerHTML = renderHome(); break;
+                case 'dashboard': app.innerHTML = renderDashboard(); break;
+                case 'mission1': app.innerHTML = renderMission1(); break;
+                case 'mission2': app.innerHTML = renderMission2(); break;
+                case 'mission3': app.innerHTML = renderMission3(); break;
+                case 'completed': app.innerHTML = renderCompleted(); break;
+                default: app.innerHTML = renderHome();
+            }
+        }
+
+        // 각 화면 생성 함수들
+        function renderHome() {
+            return `
+                <div class="flex-1 flex flex-col items-center text-center p-6 bg-gradient-to-b from-blue-50 to-white w-full min-h-screen">
+                    <div class="mt-8 mb-6">
+                        <img src="image_472302.png" 
+                             onerror="handleImgError(this, '로고')" 
+                             alt="UH FLAT Logo" class="h-16 object-contain mx-auto">
+                    </div>
+                    <div class="mb-8 w-full px-2">
+                        <img src="image_4726a1.png" 
+                             onerror="handleImgError(this, '호텔 전경')" 
+                             alt="UH FLAT 더 속초 전경" class="w-full h-64 object-cover rounded-3xl shadow-lg border-4 border-white mx-auto">
+                    </div>
+                    <h1 class="text-4xl font-black text-slate-800 leading-tight mb-4">
+                        어린이날<br/>
+                        <span class="text-blue-500 underline decoration-blue-200">패밀리 미션 투어</span>
+                    </h1>
+                    <p class="text-slate-500 mb-12 px-4 leading-relaxed font-medium">
+                        미션을 완료하고 특별한 선물을 받아보세요!
+                    </p>
+                    <button onclick="setScreen('dashboard')" 
+                            class="w-full py-5 bg-blue-600 text-white text-xl font-bold rounded-2xl shadow-xl shadow-blue-200 active:scale-95 transition-transform">
+                        미션 시작하기
+                    </button>
+                </div>
+            `;
+        }
+
+        function renderDashboard() {
+            const allDone = state.missions.m1.completed && state.missions.m2.completed && state.missions.m3.completed;
+            const completedCount = Object.values(state.missions).filter(m => m.completed).length;
+            
+            return `
+                <div class="p-6 w-full">
+                    <div class="flex justify-between items-center mb-8">
+                        <div>
+                            <h3 class="text-slate-400 text-sm font-bold uppercase tracking-wider">Mission Status</h3>
+                            <h2 class="text-2xl font-black text-slate-800">현황판</h2>
+                        </div>
+                        <div class="bg-blue-100 px-4 py-2 rounded-full">
+                            <span class="text-blue-600 font-bold">${completedCount} / 3</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        ${renderMissionCard('m1', '1F 로비', '폴라로이드 기념사진', '가족사진 찍고 스탬프 받기!', 'mission1')}
+                        ${renderMissionCard('m2', '2F 스테이지', '미니 운동회', '신발 양궁 or 투호 도전!', 'mission2')}
+                        ${renderMissionCard('m3', '옥상 라운지', '보물 QR 찾기', '숨겨진 비밀 코드를 찾아라!', 'mission3')}
+                    </div>
+
+                    <div class="mt-12">
+                        ${allDone ? `
+                            <button onclick="setScreen('completed')" 
+                                    class="w-full py-5 bg-gradient-to-r from-orange-400 to-red-500 text-white text-xl font-bold rounded-2xl shadow-xl animate-bounce">
+                                <i class="fas fa-gift mr-2"></i> 선물 받으러 가기
+                            </button>
+                        ` : `
+                            <div class="bg-slate-100 p-6 rounded-2xl text-center text-slate-400 border-2 border-dashed border-slate-200">
+                                <p class="font-medium">모든 미션을 완료하면<br/>선물을 드립니다!</p>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMissionCard(id, loc, title, desc, screen) {
+            const isDone = state.missions[id].completed;
+            return `
+                <div onclick="setScreen('${screen}')" 
+                     class="mission-card flex items-center p-5 rounded-2xl border-2 ${isDone ? 'mission-completed border-green-400' : 'bg-white border-slate-100 shadow-sm'} active:scale-98">
+                    <div class="flex-1">
+                        <span class="text-[10px] font-bold text-slate-400 px-2 py-1 rounded bg-slate-50 mb-1 inline-block">${loc}</span>
+                        <h4 class="text-lg font-bold text-slate-800">${title}</h4>
+                        <p class="text-sm text-slate-500">${desc}</p>
+                    </div>
+                    <div class="ml-4">
+                        ${isDone ? 
+                            '<div class="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white stamp-anim shadow-lg shadow-green-100"><i class="fas fa-check text-xl"></i></div>' : 
+                            '<div class="w-12 h-12 rounded-full border-2 border-slate-200 flex items-center justify-center text-slate-200"><i class="fas fa-chevron-right"></i></div>'
+                        }
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMission1() {
+            return renderMissionDetail('m1', '1F 로비', '폴라로이드 기념사진', '미션 1 완료하기', 
+                '가족들과 함께 포토월 앞에서 멋진 포즈를 취해보세요!<br/>직원에게 <strong>폴라로이드 사진</strong>을 요청하여 촬영한 뒤, 촬영된 사진이나 가족사진을 아래 버튼을 눌러 업로드 해주세요.');
+        }
+
+        function renderMission2() {
+            return renderMissionDetail('m2', '2F 스테이지', '미니 운동회', '미션 2 완료하기', 
+                '<strong>신발 양궁</strong> 또는 <strong>투호</strong> 미션에 도전하세요!<br/>도전하는 모습이나 성공한 장면을 사진으로 찍어 인증해주세요.');
+        }
+
+        function renderMission3() {
+            const mission = state.missions.m3;
+            const isDone = mission.completed;
+            
+            return `
+                <div class="p-6 flex flex-col min-h-screen w-full">
+                    <button onclick="setScreen('dashboard')" class="mb-6 text-slate-400 font-bold flex items-center"><i class="fas fa-arrow-left mr-2"></i> 목록으로</button>
+                    <div class="bg-blue-600 text-white p-8 rounded-3xl mb-8 shadow-xl">
+                        <span class="text-blue-200 font-bold">미션 3: 옥상 라운지</span>
+                        <h2 class="text-3xl font-black mt-2">보물 QR 찾기</h2>
+                    </div>
+                    
+                    <div class="bg-white p-6 rounded-3xl border-2 border-blue-50 shadow-sm flex-1">
+                        <h3 class="font-bold text-lg text-slate-800 mb-4 text-center">마지막 관문: 퀴즈 & 사진인증</h3>
+                        
+                        <p class="text-slate-600 mb-6 leading-relaxed text-center bg-blue-50 p-4 rounded-xl font-bold">
+                            "속초의 대표적인 산의 이름은?"<br/>
+                            <span class="text-blue-600">(힌트: ㅇㄹㅅ)</span>
+                        </p>
+                        
+                        ${isDone ? `
+                            <div class="text-center py-4">
+                                <img src="${mission.photo}" class="photo-preview mx-auto shadow-md">
+                                <div class="text-5xl mb-4 stamp-anim">🎉</div>
+                                <h4 class="text-xl font-bold text-green-600 underline decoration-green-200 underline-offset-4">완료되었습니다!</h4>
+                                <button onclick="setScreen('dashboard')" class="mt-8 w-full py-4 bg-slate-800 text-white rounded-xl font-bold">목록으로 돌아가기</button>
+                            </div>
+                        ` : `
+                            <input type="text" id="quizInput" placeholder="정답 입력" 
+                                   class="w-full p-4 border-2 border-slate-100 rounded-xl mb-6 text-center text-xl font-bold focus:border-blue-500 outline-none transition-colors">
+                            
+                            <div class="mb-6">
+                                <p class="text-sm text-slate-400 mb-2 text-center font-medium">옥상 경치를 배경으로 인증 사진을 찍어주세요!</p>
+                                ${mission.photo ? 
+                                    `<img src="${mission.photo}" class="photo-preview" onclick="triggerPhotoUpload('m3')">` : 
+                                    `<button onclick="triggerPhotoUpload('m3')" class="w-full py-8 border-2 border-dashed border-blue-200 rounded-2xl text-blue-400 flex flex-col items-center bg-blue-50/30">
+                                        <i class="fas fa-camera text-3xl mb-2"></i>
+                                        <span class="font-bold">사진 찍기 / 업로드</span>
+                                    </button>`
+                                }
+                            </div>
+
+                            <button onclick="checkQuizAndPhoto()" 
+                                    class="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg shadow-lg shadow-blue-100">미션 완료하기</button>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderMissionDetail(id, loc, title, btnText, content) {
+            const mission = state.missions[id];
+            const isDone = mission.completed;
+            
+            return `
+                <div class="p-6 flex flex-col min-h-screen w-full">
+                    <button onclick="setScreen('dashboard')" class="mb-6 text-slate-400 font-bold flex items-center"><i class="fas fa-arrow-left mr-2"></i> 목록으로</button>
+                    <div class="bg-slate-800 text-white p-8 rounded-3xl mb-8 shadow-xl">
+                        <span class="text-slate-400 font-bold">${loc}</span>
+                        <h2 class="text-3xl font-black mt-2">${title}</h2>
+                    </div>
+                    
+                    <div class="bg-white p-8 rounded-3xl border-2 border-slate-50 shadow-sm flex-1">
+                        <p class="text-slate-600 mb-8 leading-relaxed text-center font-medium">${content}</p>
+                        
+                        <div class="mb-8">
+                            ${mission.photo ? 
+                                `<img src="${mission.photo}" class="photo-preview shadow-md" onclick="triggerPhotoUpload('${id}')">` : 
+                                `<button onclick="triggerPhotoUpload('${id}')" class="w-full py-12 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 flex flex-col items-center active:bg-slate-50 transition-colors">
+                                    <i class="fas fa-camera text-4xl mb-3"></i>
+                                    <span class="font-bold text-lg">인증 사진 찍기 / 업로드</span>
+                                </button>`
+                            }
+                        </div>
+                        
+                        ${isDone ? `
+                             <div class="text-center text-green-500 font-black text-2xl py-5 border-2 border-green-500 rounded-2xl italic rotate-[-5deg] stamp-anim">
+                                COMPLETED
+                             </div>
+                        ` : `
+                            <button onclick="${mission.photo ? `completeMission('${id}')` : `alert('인증 사진을 먼저 업로드 해주세요!')`}" 
+                                    class="w-full py-5 ${mission.photo ? 'bg-blue-600 shadow-blue-200' : 'bg-slate-300'} text-white text-xl font-bold rounded-2xl shadow-xl active:scale-95 transition-all">
+                                ${btnText}
+                            </button>
+                        `}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderCompleted() {
+            return `
+                <div class="p-6 flex flex-col min-h-screen items-center text-center w-full">
+                    <div class="mt-12 mb-8 bg-orange-100 p-10 rounded-full stamp-anim shadow-inner shadow-orange-200/50">
+                        <i class="fas fa-trophy text-7xl text-orange-500"></i>
+                    </div>
+                    <h1 class="text-3xl font-black text-slate-800 mb-8">미션 완주 성공!</h1>
+                    
+                    <div class="w-full bg-white border-2 border-orange-100 rounded-3xl p-6 shadow-xl mb-12">
+                        <h3 class="text-slate-400 text-sm font-bold mb-4 uppercase tracking-tighter">REWARD COUPON</h3>
+                        <div class="py-6 border-y-2 border-dashed border-slate-100 mb-6">
+                            <span class="text-2xl font-black text-slate-800">어린이날 특별 선물 세트</span>
+                        </div>
+                        
+                        <p class="text-xs text-red-400 mb-4 font-bold">* 본 화면을 직원에게 보여주세요.</p>
+                        <button onclick="claimReward()" 
+                                class="w-full py-4 bg-slate-800 text-white rounded-xl font-bold shadow-lg active:scale-95 transition-transform">
+                            직원 확인 (선물 받기)
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderClaimedFinal() {
+            return `
+                <div class="p-6 flex flex-col min-h-screen items-center justify-center text-center w-full">
+                    <div class="mb-8 bg-green-100 p-10 rounded-full stamp-anim shadow-inner shadow-green-200/50">
+                        <i class="fas fa-gift text-7xl text-green-500"></i>
+                    </div>
+                    <h1 class="text-3xl font-black text-slate-800 mb-4">선물 수령 완료</h1>
+                    <div class="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl p-8 shadow-sm">
+                        <p class="text-slate-700 font-bold text-lg mb-2 leading-relaxed">어린이날 선물이<br/>정상적으로 지급되었습니다.</p>
+                        <span class="text-slate-400 text-sm font-medium italic">${new Date().toLocaleDateString()} 수령됨</span>
+                    </div>
+                    <p class="mt-12 text-slate-300 text-xs tracking-tighter">UH FLAT 더 속초 - 어린이날 미션 투어</p>
+                </div>
+            `;
+        }
+
+        // 유틸리티 로직
+        function checkQuizAndPhoto() {
+            const inputField = document.getElementById('quizInput');
+            const input = inputField ? inputField.value.trim() : "";
+            if(!state.missions.m3.photo) {
+                alert('인증 사진을 먼저 찍어주세요!');
+                return;
+            }
+            if(input === '설악산') {
+                completeMission('m3');
+            } else {
+                alert('정답이 아닙니다. 다시 생각해보세요! (초성: ㅇㄹㅅ)');
+                if(inputField) inputField.focus();
+            }
+        }
+
+        function claimReward() {
+            if(confirm('직원 전용 버튼입니다. 선물을 수령하셨나요? 수령 확인 후에는 이전 페이지로 돌아갈 수 없습니다.')) {
+                state.rewardClaimed = true;
+                saveState();
+            }
+        }
+
+        // 페이지 로드 시 즉시 렌더링 시작
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', render);
+        } else {
+            render();
+        }
+        
+        // window.onload도 보조적으로 유지
+        window.onload = render;
+    </script>
+</body>
+</html>
