@@ -52,18 +52,17 @@
             margin-bottom: 1rem;
         }
 
-        /* 이미지 오류 발생 시 표시될 영역 스타일 */
         .img-placeholder {
-            background-color: #f1f5f9;
+            background-color: #fef2f2;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             text-align: center;
-            color: #94a3b8;
+            color: #ef4444;
             font-size: 0.8rem;
             border-radius: 1.5rem;
-            border: 2px dashed #e2e8f0;
+            border: 2px dashed #fee2e2;
         }
     </style>
 </head>
@@ -77,10 +76,12 @@
     <input type="file" id="globalFileInput" accept="image/*" capture="environment" class="hidden">
 
     <script>
-        // 상태 관리 키
-        const STATE_KEY = 'uh_flat_mission_state_final';
+        // 사용자가 지정한 외부 이미지 URL을 적용합니다.
+        const IMG_LOGO = "https://cdn.imweb.me/upload/S20200306ae10b10180d43/38e90172fb748.png";
+        const IMG_HERO = "https://search.pstatic.net/common/?src=https%3A%2F%2Fnaverbooking-phinf.pstatic.net%2F20240202_105%2F1706863627579WlOhA_JPEG%2F%25C1%25B6%25B0%25A8%25B5%25B5.jpg";
+
+        const STATE_KEY = 'uh_flat_mission_state_v7';
         
-        // 초기 상태 로드
         let state = JSON.parse(localStorage.getItem(STATE_KEY)) || {
             currentScreen: 'home',
             missions: {
@@ -91,13 +92,11 @@
             rewardClaimed: false
         };
 
-        // 데이터 저장 및 리렌더링
         function saveState() {
             localStorage.setItem(STATE_KEY, JSON.stringify(state));
             render();
         }
 
-        // 화면 전환
         function setScreen(screen) {
             if (state.rewardClaimed) return;
             state.currentScreen = screen;
@@ -105,13 +104,11 @@
             window.scrollTo(0, 0);
         }
 
-        // 미션 완료
         function completeMission(id) {
             state.missions[id].completed = true;
             saveState();
         }
 
-        // 사진 업로드 핸들러
         function triggerPhotoUpload(id) {
             const fileInput = document.getElementById('globalFileInput');
             fileInput.onchange = (e) => {
@@ -140,35 +137,40 @@
             fileInput.click();
         }
 
-        // 이미지 로드 실패 시 실행될 함수
         function handleImgError(el, type) {
-            el.onerror = null; // 무한 루프 방지
+            console.error("이미지 로드 실패 상세 경로:", el.src);
+            el.onerror = null; 
             const parent = el.parentElement;
-            
-            // 기존 이미지를 숨기고 안내 문구 표시
             el.style.display = 'none';
             
             const placeholder = document.createElement('div');
-            placeholder.className = type === 'logo' ? 'h-16 w-full flex items-center justify-center font-bold text-slate-300' : 'img-placeholder w-full h-64';
-            placeholder.innerHTML = type === 'logo' 
-                ? '<span>UH FLAT 더 속초</span>' 
-                : '<i class="fas fa-image text-4xl mb-2"></i><span>이미지를 불러올 수 없습니다</span><span class="text-[10px] mt-1">(파일명: ' + el.getAttribute('src') + ')</span>';
+            
+            if (type === 'logo') {
+                placeholder.className = 'h-20 w-full flex flex-col items-center justify-center font-bold text-slate-300 border border-slate-100 rounded-xl bg-white';
+                placeholder.innerHTML = `<span class="text-slate-800 text-lg">UH FLAT 더 속초</span>`;
+            } else {
+                placeholder.className = 'img-placeholder w-full h-64 p-4';
+                placeholder.innerHTML = `
+                    <i class="fas fa-exclamation-triangle text-3xl mb-2"></i>
+                    <span class="font-bold">이미지를 불러올 수 없습니다</span>
+                    <div class="text-[9px] mt-3 text-slate-500 leading-tight">
+                        네트워크 상태를 확인해 주시거나<br>이미지 주소가 유효한지 확인해 주세요.
+                    </div>
+                `;
+            }
             
             parent.appendChild(placeholder);
         }
 
-        // 메인 렌더링 로직
         function render() {
             const app = document.getElementById('app');
             if (!app) return;
 
-            // 보상 수령 시 화면 고정
             if (state.rewardClaimed) {
                 app.innerHTML = renderClaimedFinal();
                 return;
             }
 
-            // 스크린 분기
             switch (state.currentScreen) {
                 case 'home': app.innerHTML = renderHome(); break;
                 case 'dashboard': app.innerHTML = renderDashboard(); break;
@@ -183,21 +185,21 @@
         function renderHome() {
             return `
                 <div class="flex-1 flex flex-col items-center text-center p-6 bg-gradient-to-b from-blue-50 to-white w-full min-h-screen">
-                    <div class="mt-8 mb-6">
-                        <img src="./image_472302.png" 
+                    <div class="mt-8 mb-6 w-full px-4">
+                        <img src="${IMG_LOGO}" 
                              onerror="handleImgError(this, 'logo')" 
-                             alt="UH FLAT Logo" class="h-16 object-contain mx-auto">
+                             alt="UH FLAT Top Logo" class="w-full h-auto max-h-24 object-contain mx-auto">
                     </div>
                     <div class="mb-8 w-full px-2">
-                        <img src="./image_4726a1.png" 
+                        <img src="${IMG_HERO}" 
                              onerror="handleImgError(this, 'hero')" 
-                             alt="UH FLAT 더 속초 전경" class="w-full h-64 object-cover rounded-3xl shadow-lg border-4 border-white mx-auto">
+                             alt="UH FLAT 더 속초 조감도" class="w-full h-64 object-cover rounded-3xl shadow-lg border-4 border-white mx-auto">
                     </div>
                     <h1 class="text-4xl font-black text-slate-800 leading-tight mb-4">
                         어린이날<br/>
                         <span class="text-blue-500 underline decoration-blue-200 underline-offset-8">패밀리 미션 투어</span>
                     </h1>
-                    <p class="text-slate-500 mb-12 px-4 leading-relaxed font-medium">
+                    <p class="text-slate-500 mb-12 px-4 leading-relaxed font-medium text-lg">
                         미션을 완료하고 특별한 선물을 받아보세요!
                     </p>
                     <button onclick="setScreen('dashboard')" 
@@ -216,8 +218,8 @@
                 <div class="p-6 w-full flex-1">
                     <div class="flex justify-between items-center mb-8">
                         <div>
-                            <h3 class="text-slate-400 text-sm font-bold uppercase tracking-wider">Mission Status</h3>
-                            <h2 class="text-2xl font-black text-slate-800">현황판</h2>
+                            <h3 class="text-slate-400 text-sm font-bold uppercase tracking-wider text-left">Mission Status</h3>
+                            <h2 class="text-2xl font-black text-slate-800 text-left">현황판</h2>
                         </div>
                         <div class="bg-blue-100 px-4 py-2 rounded-full shadow-inner">
                             <span class="text-blue-600 font-bold">${completedCount} / 3</span>
@@ -251,7 +253,7 @@
             return `
                 <div onclick="setScreen('${screen}')" 
                      class="mission-card flex items-center p-5 rounded-2xl border-2 ${isDone ? 'mission-completed border-green-400' : 'bg-white border-slate-100 shadow-sm'} active:scale-98">
-                    <div class="flex-1">
+                    <div class="flex-1 text-left">
                         <span class="text-[10px] font-bold text-slate-400 px-2 py-1 rounded bg-slate-50 mb-1 inline-block">${loc}</span>
                         <h4 class="text-lg font-bold text-slate-800 leading-tight">${title}</h4>
                         <p class="text-xs text-slate-500 mt-1">${desc}</p>
@@ -283,7 +285,7 @@
             return `
                 <div class="p-6 flex flex-col min-h-screen w-full">
                     <button onclick="setScreen('dashboard')" class="mb-6 text-slate-400 font-bold flex items-center"><i class="fas fa-arrow-left mr-2"></i> 목록으로</button>
-                    <div class="bg-blue-600 text-white p-8 rounded-3xl mb-8 shadow-xl">
+                    <div class="bg-blue-600 text-white p-8 rounded-3xl mb-8 shadow-xl text-left">
                         <span class="text-blue-200 font-bold">미션 3: 옥상 라운지</span>
                         <h2 class="text-3xl font-black mt-2 leading-tight">보물 QR 찾기</h2>
                     </div>
@@ -333,7 +335,7 @@
             return `
                 <div class="p-6 flex flex-col min-h-screen w-full">
                     <button onclick="setScreen('dashboard')" class="mb-6 text-slate-400 font-bold flex items-center"><i class="fas fa-arrow-left mr-2"></i> 목록으로</button>
-                    <div class="bg-slate-800 text-white p-8 rounded-3xl mb-8 shadow-xl">
+                    <div class="bg-slate-800 text-white p-8 rounded-3xl mb-8 shadow-xl text-left">
                         <span class="text-slate-400 font-bold">${loc}</span>
                         <h2 class="text-3xl font-black mt-2 leading-tight">${title}</h2>
                     </div>
@@ -406,7 +408,6 @@
             `;
         }
 
-        // 유틸리티 함수
         function checkQuizAndPhoto() {
             const inputField = document.getElementById('quizInput');
             const input = inputField ? inputField.value.trim() : "";
@@ -432,9 +433,8 @@
             }
         }
 
-        // 초기 실행
         window.addEventListener('load', render);
-        render(); // 즉시 실행 시도
+        render();
     </script>
 </body>
 </html>
